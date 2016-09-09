@@ -1,0 +1,2493 @@
+#include <unistd.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+	unsigned int seconds = 0;
+
+#ifdef USE_MAP_ANON
+#define _BSD_SOURCE
+#endif
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+	int *addr;
+#ifdef USE_MAP_ANON
+	addr = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1 , 0);
+	if(addr == MAP_FAILED)
+		exit(-1);
+#else
+		int fd;
+		fd = open("/dev/zero", O_RDWR);
+		if(fd == -1)
+			exit(-1);
+		addr = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, fd, 0);
+		if(addr == MAP_FAILED)
+		exit(-1);
+	
+		if(close(fd) == -1)
+			exit(-1);
+#endif
+		*addr = 1;
+		
+		switch(fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				printf("child started, value = %d\n", *addr);
+				(*addr) ++;
+
+				if(munmap(addr, sizeof(int)) == -1)
+					exit(-1);
+				exit(0);
+			default:
+				if(wait(NULL) == -1)
+					exit(-1);
+				printf("in parent, value = %d\n", *addr);
+				if(munmap(addr, sizeof(int)) == -1)
+					exit(-1);
+				exit(0);
+		}
+}
+				
+
+
+
+int main;
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+
+#define MES_MAX 1000
+
+int main(int argc, char **argv)
+{
+
+	fflush(stdout);
+	int clfd;
+	int  mes[MES_MAX];
+	for(int i = 0; i < MES_MAX; ++i)
+		mes[i] = (i + 1);
+
+
+	clfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+
+	seraddr.sin_family = AF_INET;
+	seraddr.sin_port = htons(atoi(argv[1]));
+	inet_pton(AF_INET, "127.0.0.1", &(seraddr.sin_addr));
+	connect(clfd, (struct sockaddr*)&seraddr, sizeof(seraddr));
+	printf("connect success\n");
+	//int num = write(clfd, mes, sizeof(mes));
+	int num = write(clfd, mes, sizeof(int) * atoi(argv[2]));
+	printf("client pass %d, success %lu\n", atoi(argv[2]), num/sizeof(int)); 
+	for(int i = 0; i < MES_MAX; ++i)
+		printf("%d ", mes[i]);
+	printf("\n");
+
+	fflush(stdout);
+	int count = 0;
+	num = read(clfd, &count, sizeof(int));
+	printf("success read %lu \n%d\n", num/sizeof(int), count);
+	return 0;
+}
+#define _GNU_SOURCE
+#include <signal.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <sched.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <string.h>
+
+#ifndef CHILD_SIG
+#define CHILD_SIG SIGUSR1
+
+#endif
+
+static int childfunc(void *arg)
+{
+	if(close(*((int*)arg)) == -1)
+		exit(-1);
+	return 0;
+}
+
+int main(int argc, char **argv)
+{
+	const int STACK_SIZE = 65536;
+	char *stack;
+	char *stacktop;
+	int s, fd, flags;
+
+	fd = open("/dev/null", O_RDWR);
+	if(fd == -1)
+		exit(-1);
+	
+	flags = (argc > 1) ? CLONE_FILES : 0;
+
+	stack = malloc(STACK_SIZE);
+	if(stack == NULL)
+		exit(-1);
+	stacktop = stack + STACK_SIZE;
+
+	if(CHILD_SIG != 0 && CHILD_SIG != SIGCHLD)
+		if(signal(CHILD_SIG, SIG_IGN) == SIG_ERR)
+			exit(-1);
+	if(clone(childfunc, stacktop, flags | CHILD_SIG, (void*)&fd) ==-1)
+		exit(-1);
+	if(waitpid(-1, NULL, (CHILD_SIG != SIGCHLD) ? __WCLONE : 0) == -1)
+		exit(-1);
+	printf("child has terminated\n");
+
+	s = write(fd, "x", 1);
+	if(s == -1 && errno == EBADF)
+		printf("file descriptor %d has been closed\n", fd);
+	else if(s == -1)
+		printf("write() on file descriptor %d failed "
+						"unexpectedly (%s)\n", fd, strerror(errno));
+	else
+		printf("write() on file descriptor %d duccess\n", fd);
+	return 0;
+}
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	int flags;
+	if(argc > 1)
+	{
+		flags = fcntl(STDOUT_FILENO, F_GETFD);
+		if(flags == -1)
+			exit(-1);
+		flags |= FD_CLOEXEC;
+
+		if(fcntl(STDOUT_FILENO, F_SETFD, flags) == -1)
+			exit(-1);
+	}
+	execlp("ls", "ls", "-l", argv[0], (char*)NULL);
+	exit(0);
+}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+
+#define MES_MAX 1000
+
+int main(int argc, char **argv)
+{
+
+	fflush(stdout);
+	int clfd;
+	int  mes[MES_MAX];
+	for(int i = 0; i < MES_MAX; ++i)
+		mes[i] = (i + 1);
+
+
+	clfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+
+	seraddr.sin_family = AF_INET;
+	seraddr.sin_port = htons(atoi(argv[1]));
+	inet_pton(AF_INET, "127.0.0.1", &(seraddr.sin_addr));
+	connect(clfd, (struct sockaddr*)&seraddr, sizeof(seraddr));
+	//int num = write(clfd, mes, sizeof(mes));
+	int num = write(clfd, mes, sizeof(int) * atoi(argv[2]));
+	printf("client pass %d, success %lu\n", atoi(argv[2]), num/sizeof(int)); 
+	for(int i = 0; i < MES_MAX; ++i)
+		printf("%d ", mes[i]);
+	printf("\n");
+
+	fflush(stdout);
+	int count = 0;
+	num = read(clfd, &count, sizeof(int));
+	printf("success read %lu \n%d\n", num/sizeof(int), count);
+	return 0;
+}
+#include <sys/wait.h>
+#include <signal.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+
+#define MES_MAX 100
+
+static void handle(int sig)
+{
+	int savederrno;
+	savederrno = errno;
+	while(waitpid(-1, NULL, WNOHANG) > 0);
+	errno = savederrno;
+}
+
+int main(int argc, char **argv)
+{
+	int serfd;
+	int clfd;
+	int mes[MES_MAX];
+
+	serfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sa.sa_handler = handle;
+	if(sigaction(SIGCHLD, &sa, NULL) == -1)
+		exit(-1);
+
+	seraddr.sin_family = AF_INET;
+	seraddr.sin_port = htons(atoi(argv[1]));
+	if(inet_pton(AF_INET, "127.0.0.1", &(seraddr.sin_addr)) == 1);
+	else
+	{
+		printf("error1\n");
+		exit(-1);
+	}
+	if(-1 == bind(serfd, (struct sockaddr*)&seraddr, sizeof(struct sockaddr_in)))
+	{
+		printf("error bind\n");
+		exit(-1);
+	}
+	if(listen(serfd, 5)  == -1)
+		exit(-1);
+	while(1)
+	{
+		clfd =  accept(serfd, NULL, NULL);
+		switch(fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				close(serfd);
+				int comp = 0;
+				int num = read(clfd, mes, sizeof(mes));
+				
+				if(num == 0)
+				{
+					printf("serve read 0\n");
+					_exit(0);
+				}
+				if(num < 0)
+				{
+					printf("serve read error\n");
+					_exit(-1);
+				}
+				printf("serve successly read %lu\n", num/sizeof(int));
+				for(int i = 0; i < num/sizeof(int); ++i)
+				{
+					comp += mes[i];
+					//printf("serve %d ", mes[i]);
+				}
+				printf("\nserve num: %d\n", comp);
+				write(clfd, &comp, sizeof(int));
+				_exit(0);
+			default:
+				close(clfd);
+				break;
+		}
+	}
+	return 0;
+}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+extern char **environ;
+
+int main(int argc, char **argv)
+{
+	int j;
+	char **ep;
+	for(j = 0; j < argc; ++j)
+		printf("argv[%d] = %s\n", j, argv[j]);
+	for(ep = environ; *ep != NULL; ep++)
+		printf("environ: %s\n", *ep);
+	
+	return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+	printf("Initial value of USER: %s\n", getenv("USER"));
+	if(putenv("USER=britta") != 0)
+		exit(-1);
+	execl("/usr/bin/printenv", "printenv", "USER", "SHELL", (char*)NULL);
+	exit(0);
+}
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+
+int main(int argc, char **argv)
+{
+	execlp(argv[1], argv[1], "hello, world", (char*)NULL);
+	
+	return -1;
+}
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+	char *argvec[10];
+	char *envvec[] = {"GREET=salut", "BYE=adieu", NULL};
+
+	argvec[0] = strrchr(argv[1], '/');
+	if(argvec[0] != NULL)
+		argvec[0]++;
+	else
+		argvec[0] = argv[1];
+	argvec[1] = "hello world";
+	argvec[2] = "goodbye";
+	argvec[3] = "hell world";
+	argvec[4] = NULL;
+
+	execve(argv[1], argvec, envvec);
+	exit(0);
+}
+
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	int fd;
+	fd = open(argv[1], O_RDWR);
+	int flag;
+	flag = fcntl(fd, F_GETFL);
+	int fd_copy;
+
+	fd_copy = fcntl(fd, F_DUPFD, 4);
+	printf("%d %d\n", fd, fd_copy);
+
+	printf("%d\n", flag);
+
+	return 0;
+}
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdio.h>
+
+#define SERVER_FIFO "/tmp/seqnum_sv"
+#define CLIENT_FIFO_TEMPLATE "/tem/seqnum_cl.%ld"
+
+#define CLIENT_FIFO_NAME_LEN (sizeof(CLIENT_FIFO_TEMPLATE) + 20)
+
+struct request
+{
+	pid_t pid;
+	int seqlen;
+};
+
+struct response
+{
+	int seqnum;
+};
+
+int main(int argc, char **argv)
+{
+	int serverfd, dummpyfd, clientfd;
+	char clientfifo[CLIENT_FIFO_NAME_LEN];
+	struct request req;
+	struct response resp;
+	int seqnum = 0;
+	umask(0);
+	if(mkfifo(SERVER_FIFO, S_IRUSR | S_IWUSR | S_IWGRP) == -1 && errno != EEXIST)
+		exit(-1);
+	serverfd = open(SERVER_FIFO, O_RDONLY);
+	if(serverfd == -1)
+		exit(-1);
+	dummpyfd = open(SERVER_FIFO, O_WRONLY);
+	if(dummpyfd == -1)
+		exit(-1);
+	if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+		exit(-1);
+	for(;;)
+	{
+		if(read(serverfd, &req, sizeof(struct request)) != sizeof(struct request))
+		{
+			printf("read error\n");
+			continue;
+		}
+
+		snprintf(clientfifo, CLIENT_FIFO_NAME_LEN, CLIENT_FIFO_TEMPLATE, (long)req.pid);
+		clientfd = open(clientfifo, O_WRONLY);
+		if(clientfd == -1)
+		{
+			printf("open %s error\n", clientfifo);
+			continue;
+		}
+
+		resp.seqnum = seqnum;
+		if(write(clientfd, &resp, sizeof(struct response)) != sizeof(struct response))
+			printf("error\n");
+		if(close(clientfd) == -1)
+			printf("error\n");
+		seqnum += req.seqlen;
+	}
+}
+
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static int idata = 111;
+
+int main(int argc, char **argv)
+{
+	int istack = 222;
+	pid_t childpid;
+	switch(childpid = fork())
+	{
+		case -1: exit(-1);
+		case 0:
+			idata *= 3;
+			istack *= 3;
+			break;
+		default:
+			sleep(3);
+			break;
+	}
+	printf("PID=%ld %s idata=%d istack=%d\n", (long)getpid(),
+					(childpid == 0) ? "child" : "parent", idata, istack);
+	return 0;
+}
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <stdlib.h>
+
+#define BUF_SIZE 256
+
+int main(int argc, char **argv)
+{
+	int fd;
+	if((fd = open(argv[1], O_WRONLY)) == -1)
+		exit(-1);
+	else
+		printf("open success\n");
+
+	char buff[BUF_SIZE] = "dsdsdsdsdsdsdsa";
+
+	pid_t childpid;
+	switch(childpid = fork())
+	{
+		case -1:
+			exit(-1);
+		case 0:
+			if(write(fd, buff, BUF_SIZE) == -1)
+				printf("child fail\n");
+			close(fd);
+			_exit(0);
+		default:
+			sleep(5);
+			if(write(fd, buff, BUF_SIZE) == -1)
+				printf("fail\n");
+	}
+
+	return 0;
+}
+#include <errno.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#define SYSNC_SIG SIGUSR1
+
+static void handler(int sig)
+{
+}
+
+int main(int argc, char **argv)
+{
+	pid_t childpid;
+	sigset_t blockmask, origmask, emptymask;
+	struct sigaction sa;
+
+	setbuf(stdout, NULL);
+
+	sigemptyset(&blockmask);
+	sigaddset(&blockmask, SYSNC_SIG);
+	if(sigprocmask(SIG_BLOCK, &blockmask, &origmask) == -1)
+		exit(-1);
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sa.sa_handler = handler;
+	if(sigaction(SYSNC_SIG, &sa, NULL) == -1)
+		exit(-1);
+	
+	switch(childpid = fork())
+	{
+		case -1:
+			exit(-1);
+		case 0:
+			printf("%ld child started - doing some work\n",
+						(long)getpid());
+			sleep(2);
+			printf("%ld child about to signal parent\n", (long)getpid());
+			if(kill(getppid(), SYSNC_SIG) == -1)
+				_exit(-1);
+			_exit(EXIT_SUCCESS);
+		default:
+			printf("%ld parent about to wait for signal\n", (long)getpid());
+			sigemptyset(&emptymask);
+			if(sigsuspend(&emptymask) == -1 && errno != EINTR)
+				exit(-1);
+			printf("%ld parent got a signal\n", (long)getpid());
+			if(sigprocmask(SIG_SETMASK, &origmask, NULL) == -1)
+				exit(-1);
+			exit(EXIT_SUCCESS);
+	}
+}
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	int numchildren, i;
+	pid_t childpid;
+
+	numchildren = atoi(argv[1]);
+
+	setbuf(stdout, NULL);
+	
+	for(i = 0; i < numchildren; ++i)
+	{
+		switch(childpid = fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				printf("%d child\n", i);
+				_exit(EXIT_SUCCESS);
+			default:
+				printf("%d parent\n", i);
+				wait(NULL);
+				break;
+		}
+	}
+	exit(EXIT_SUCCESS);
+}
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+	char *name;
+	name = getlogin();
+	printf("%s\n", name);
+	return 0;
+}
+
+#include <stdio.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
+int main(int argc, char **argv)
+{
+	int pr = getpriority(PRIO_PROCESS, 0);
+	printf("%d\n", pr);
+	return 0;
+}
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static int idata = 111;
+
+int main(int argc, char **argv)
+{
+	int istack = 222;
+	pid_t childpid;
+	switch(childpid = fork())
+	{
+		case -1: exit(-1);
+		case 0:
+			idata *= 3;
+			istack *= 3;
+			break;
+		default:
+			sleep(3);
+			break;
+	}
+	printf("PID=%ld %s idata=%d istack=%d\n", (long)getpid(),
+					(childpid == 0) ? "child" : "parent", idata, istack);
+	return 0;
+}
+#include <stdio.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+	int flag;
+	int domain = AF_INET;
+	char src_str1[] =  "202.201.114.75";
+	char src_str2[] =  "::1";
+	struct in_addr addr;
+	flag = inet_pton(domain, src_str1, &addr);
+	printf("%d\n", addr.s_addr);
+
+	struct in6_addr addr6;
+	flag = inet_pton(AF_INET6, src_str2, &addr);
+	printf("%s\n", addr6.s6_addr);
+	return 0;
+}
+
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+	char *addr;
+	int fd;
+	struct stat sb;
+
+	fd = open(argv[1], O_RDONLY);
+	if(fd == -1)
+		exit(-1);
+	if(fstat(fd, &sb) == -1)
+		exit(-1);
+	addr = mmap(NULL,sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if(addr == MAP_FAILED)
+		exit(-1);
+	if(write(STDOUT_FILENO, addr, sb.st_size) != sb.st_size)
+		exit(-1);
+	munmap(addr, sb.st_size);
+	exit(0);
+}
+#include <errno.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static volatile int numlivechildren = 0;
+
+static void sigchlhandler(int sig)
+{
+	int status, saveerrno;
+	pid_t childpid;
+
+	saveerrno = errno;
+
+	printf("handler: caught SIGCHLD\n");
+
+	while((childpid = waitpid(-1, &status, WNOHANG)) > 0)
+	{
+		printf("handler: reaped child %ld-\n", (long) childpid);
+		numlivechildren--;
+	}
+
+	if(childpid == -1 && errno != ECHILD)
+		exit(-1);
+	sleep(5);
+	printf("handler: returning\n");
+	errno = saveerrno;
+}
+
+int main(int argc, char **argv)
+{
+	int j, sigcnt;
+	sigset_t blockmask, emptymask;
+	struct sigaction sa;
+
+	setbuf(stdout, NULL);
+	sigcnt = 0;
+	numlivechildren = argc - 1;
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = sigchlhandler;
+	if(sigaction(SIGCHLD, &sa, NULL) == -1)
+		exit(-1);
+	sigemptyset(&blockmask);
+	sigaddset(&blockmask, SIGCHLD);
+	if(sigprocmask(SIG_SETMASK, &blockmask, NULL) == -1)
+		exit(-1);
+	for(j = 1; j < argc; ++j)
+	{
+		switch(fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				sleep(atoi(argv[j]));
+				printf("child %d (PID=%ld) exiting\n", j, (long)getpid());
+				_exit(0);
+			default:
+				break;
+		}
+	}
+
+	sigemptyset(&emptymask);
+	while(numlivechildren > 0)
+	{
+		if(sigsuspend(&emptymask) == -1 && errno != EINTR)
+			exit(-1);
+		sigcnt ++;
+	}
+	printf("all %d children have terminated;SIGCHLD was caught %d times\n", argc -1, sigcnt);
+	exit(0);
+}
+#define _POSIX_C_SOURCE 199309
+#include <time.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <errno.h>
+
+static void siginthandler(int sig)
+{
+	return;
+}
+
+int main(int argc, char **argv)
+{
+	struct timeval start, finish;
+	struct timespec request, remain;
+	struct sigaction sa;
+	int s;
+	request.tv_sec = atol(argv[1]);
+	request.tv_nsec = atol(argv[2]);
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = siginthandler;
+	if(sigaction(SIGINT, &sa, NULL) == -1)
+		exit(-1);
+	if(gettimeofday(&start, NULL) == -1)
+		exit(-1);
+	for(;;)
+	{
+		s = nanosleep(&request, &remain);
+		if(s == -1 && errno != EINTR)
+			exit(-1);
+		if(gettimeofday(&finish, NULL) == -1)
+			exit(-1);
+		printf("Sleep for: %9.6f secs\n", finish.tv_sec - start.tv_sec + (finish.tv_usec - start.tv_usec) / 1000000.0);
+
+		if(s == 0)
+			break;
+		printf("Remaining: %2ld.%09ld\n", (long)remain.tv_sec, remain.tv_nsec);
+ 		request = remain;
+	}
+	printf("Slepp complete\n");
+	return 0;
+}
+#include <stdio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <semaphore.h>
+
+int main(int argc, char **argv)
+{
+	sem_t *sem;
+	
+	sem = sem_open(argv[1], 0);
+	if(sem == SEM_FAILED)
+		printf("error\n");
+	else
+		printf("success\n");
+	return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <sys/types.h>
+
+
+int main(int argc, char **argv)
+{
+	pid_t childpid;
+
+	switch(childpid = fork())
+	{
+		case -1:
+			exit(-1);
+		case 0:
+			sleep(5);
+			printf("gppid() = %ld\npthreadID %ld\n", (long)getppid(), (long)pthread_self());
+			_exit(0);
+		default:
+			printf("parent %ld exit\npthreadID %ld", (long)getpid(),(long)pthread_self());
+			exit(0);
+	}
+}
+
+#include <sys/wait.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BUF_SIZE 1024
+
+int main(int argc, char **argv)
+{
+	int filedes[2];
+	char buf[BUF_SIZE];
+	if(pipe(filedes)  == -1)
+		exit(-1);
+
+	int num_read = 0;
+	switch(fork())
+	{
+		case -1:
+			exit(-1);
+		case 0:
+			if(close(filedes[1]) == -1)
+				exit(-1);
+			for(;;)
+			{
+				num_read = read(filedes[0], buf, BUF_SIZE);
+				if(num_read == -1)
+					exit(-1);
+				if(num_read == 0)
+					break;
+				if(write(STDOUT_FILENO, buf, num_read))
+					exit(-1);
+			}
+			write(STDOUT_FILENO, "\n", 1);
+			if(close(filedes[0]) == -1)
+				exit(-1);
+			exit(0);
+		default:
+			if(close(filedes[0]) == -1)
+				exit(-1);
+			if(write(filedes[1], argv[1], strlen(argv[1])) != strlen(argv[1])) 
+				exit(-1);
+			if(close(filedes[1]) == -1)
+				exit(-1);
+			wait(NULL);
+		exit(0);
+	}
+}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+
+int main(int argc, char **argv)
+{
+	int pfd[2];
+	int j, dummy;
+	if(argc < 2)
+	{
+		printf("aleep-time\n");
+		exit(-1);
+	}
+	
+	setbuf(stdout, NULL);
+
+	if(pipe(pfd) == -1)
+		exit(-1);
+	
+	for(j = 1; j < argc; ++j)
+	{
+		switch(fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				if(close(pfd[0]) == -1)
+					exit(-1);
+			sleep(atoi(argv[j]));
+			printf("child %d (PId=%ld) closeing pipe\n", 
+			j, (long)getpid());
+			if(close(pfd[1]) == -1)
+				exit(-1);
+			_exit(0);
+		default:
+			break;
+		}
+	}
+
+	if(close(pfd[1]) == -1)
+		exit(-1);
+	
+	if(read(pfd[0], &dummy, 1) != 0)
+		exit(-1);
+	printf("Parent ready to go\n");
+	exit(0);
+}
+#include <stdlib.h>
+#include <string.h>
+#include <mqueue.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+	int flags, opt;
+	mode_t perms;
+	mqd_t mqd;
+	struct mq_attr attr, *attrp;
+	mq_unlink("/mq");
+
+	attrp = NULL;
+	attr.mq_maxmsg = 50;
+	attr.mq_msgsize = 2048;
+	flags = O_RDWR;
+
+	while((opt = getopt(argc, argv, "cm:s:x")) != -1)
+	{
+		switch(opt)
+		{
+			case 'c':
+				flags |= O_CREAT;
+				break;
+			case 'm':
+				attr.mq_maxmsg = atoi(optarg);
+				attrp = &attr;
+				break;
+			case 's':
+				attr.mq_msgsize = atoi(optarg);
+				attrp = &attr;
+				break;
+
+			case 'x':
+				flags |= O_EXCL;
+				break;
+			default:
+				exit(-1);
+		}
+	}
+	if(optind >= argc)
+		exit(-1);
+	
+	perms = (argc <= optind + 1) ? (S_IRUSR | S_IWUSR) : atoi(argv[optind]);
+	mqd = mq_open(argv[optind], flags, perms, attrp);
+	if(mqd == (mqd_t)-1)
+		exit(-1);
+	if(mq_getattr(mqd, &attr) == -1)
+		exit(-1);
+	printf("max of message on queue: %ld\n", attr.mq_maxmsg);
+	printf("max of message size: %ld\n", attr.mq_msgsize);
+
+	mq_send(mqd, argv[optind+1], strlen(argv[optind+1]), 0);
+
+
+
+	return 0;
+}
+#include <stdio.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+static void* thread_func(void* arg)
+{
+	int j;
+	int i = -1;
+	printf("New thread started\n");
+	for(j = 1; ;++j)
+	{
+		printf("Loop %d\n", j);
+		sleep(1);
+//		i++;
+	//	pthread_testcancel();
+	}
+
+	return NULL;
+}
+
+int main(int argc, char **argv)
+{
+	pthread_t thr;
+	int s;
+	void *res;
+
+	s = pthread_create(&thr, NULL, thread_func, NULL);
+	if(s != 0)
+		exit(-1);
+	
+	sleep(3);
+
+	s = pthread_cancel(thr);
+	if(s != 0)
+		exit(-1);
+	s =pthread_join(thr, &res);
+	if(s != 0)
+		exit(-1);
+	
+	if(res == PTHREAD_CANCELED)
+		printf("thread was canceled \n");
+	else
+		printf("thread was not canceled (should not happen!)\n");
+	exit(0);
+}
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void* threadfunc(void *arg)
+{
+	char *s = (char*)arg;
+	printf("%s", s);
+	printf("%s", s);
+	return (void*) strlen(s);
+}
+
+int main(int argc, char **argv)
+{
+	pthread_t t1;
+	void *res;
+	int s;
+
+	s = pthread_create(&t1, NULL, threadfunc, "hello, world\n");
+	if(s != 0)
+		exit(-1);
+	printf("Message from main()\n");
+	s = pthread_join(t1, &res);
+	if(s != 0)
+		exit(-1);
+	printf("Thread returned %ld\n", (long)res);
+	return 0;
+}
+#include <signal.h>
+#include <sys/time.h>
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static volatile sig_atomic_t gotalarm = 0;
+
+static void displaytimes(const char *msg, int includetimer)
+{
+	struct itimerval itv;
+	static struct timeval start;
+	struct timeval curr;
+	static int callnum = 0;
+	if(callnum == 0)
+		if(gettimeofday(&start, NULL) == -1)
+			exit(-1);
+	if(callnum % 20 == 0)
+		printf("elapsed value interval\n");
+	if(gettimeofday(&curr, NULL) == -1)
+		exit(-1);
+	printf("%-7s %6.2f", msg.curr.tv_sec - start.tv_sec + (curr.tv_usec - start.tv_usec) / 1000000.0);
+	if(includetimer)
+	{
+		if(getitimer(ITIMER_REAL, &itv) == -1)
+			exit(-1);
+		printf(" %6.2f %6.2f", itv.it_value.tv_sec, + itv.it_value.tv_usec / 1000000.0, itv.it_interval.tv_sec + itv.it_interval.tv_sec / 1000000.0);
+	}
+	printf("\n");
+	++callnum;
+}
+static void sigalrmhandler(int sig)
+{
+	gotalarm = 1;
+}
+
+int main(int argc, char **argv)
+{
+
+#define _GNU_SOURCE
+#include <string.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+static volatile int handlersleeptime;
+static volatile int sigcnt = 0;
+static volatile int alldone = 0;
+
+static void handler(int sig, siginfo_t *si, void* ucontext)
+{
+	if(sig == SIGINT || sig == SIGTERM)
+	{
+		alldone = 1;
+		return;
+	}
+
+	sigcnt ++;
+	printf("caught signal %d\n",sig);
+	printf("si_signo=%d, si_code=%d(%s), ", si->si_signo, si->si_code,
+				(si->si_code == SI_USER) ? "SI_USER" :
+				(si->si_code == SI_QUEUE) ? "SI_QUEUE" : "other");
+	printf("si_value=%d\n", si->si_value.sival_int);
+	printf(" si_pid=%ld, si_uid=%ld\n", (long)si->si_pid, (long)si->si_uid);
+	sleep(handlersleeptime);
+
+}
+
+int main(int argc, char ** argv)
+{
+	struct sigaction sa;
+	int sig;
+	sigset_t prevmask, blockmask;
+	
+	printf("%s: PID is %ld\n", argv[0], (long)getpid());
+	handlersleeptime = (argc > 2) ? atoi(argv[2]) : 1;
+	
+	sa.sa_sigaction = handler;
+	sa.sa_flags = SA_SIGINFO;
+	sigfillset(&sa.sa_mask);
+
+	for(sig = 1; sig < NSIG; ++sig)
+		if(sig != SIGTSTP && sig != SIGQUIT)
+			sigaction(sig, &sa, NULL);
+	while(!alldone)
+		pause();
+
+	return 0;
+}
+#include <sched.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	int which = SCHED_RR;
+	printf("%d\n", sched_get_priority_min(which));
+	printf("%d\n", sched_get_priority_max(which));
+	return 0;
+}
+#include <unistd.h>
+#include <semaphore.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	int flags, opt;
+	mode_t perms = 666;
+
+	unsigned int value = 0;
+	sem_t *sem;
+
+	flags = 0;
+	while((opt = getopt(argc, argv, "cx")) != -1)
+	{
+		switch(opt)
+		{
+			case 'c': flags |= O_CREAT;
+			case 'x': flags |= O_EXCL;
+			default: exit(-1);
+		}
+	}
+	if(optind > argc)
+		exit(-1);
+	sem = sem_open(argv[optind], flags, perms, value);
+	if(sem == SEM_FAILED)
+		exit(-1);
+	sem_close(sem);
+	sem_unlink(argv[optind]);
+	exit(0);
+}
+#include <stdlib.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+	int flags, opt;
+	mode_t perms;
+	unsigned int value;
+	sem_t *sem;
+	sem_unlink("/de");
+	sem_unlink("/dem");
+
+	flags = 0;
+	while((opt = getopt(argc, argv, "cx")) != -1)
+	{
+		switch(opt)
+		{
+			case 'x': flags |= O_CREAT; break;
+			case 'c': flags |= O_EXCL; break;
+			default: exit(-1);
+		}
+	}
+
+	if(optind >= argc)
+	{
+		printf("argam error\n");
+		exit(-1);
+	}
+
+	
+	perms = (argc <= optind + 1) ? (S_IRUSR | S_IWUSR) : atoi(argv[optind]);
+	value = (argc <= optind + 2) ? 0 : atoi(argv[optind+2]);
+
+	printf("%ld\n", (long)flags);
+	sem = sem_open(argv[optind], flags, perms, value);
+	if(sem == SEM_FAILED)
+	{
+		printf("sem_open error\n");
+		exit(-1);
+	}
+	
+	printf("success\n");
+	return 0;
+}
+#include <sys/wait.h>
+#include <signal.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+
+#define MES_MAX 100
+
+static void handle(int sig)
+{
+	int savederrno;
+	savederrno = errno;
+	while(waitpid(-1, NULL, WNOHANG) > 0);
+	errno = savederrno;
+}
+
+int main(int argc, char **argv)
+{
+	int serfd;
+	int clfd;
+	int mes[MES_MAX];
+
+	serfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sa.sa_handler = handle;
+	if(sigaction(SIGCHLD, &sa, NULL) == -1)
+		exit(-1);
+
+	seraddr.sin_family = AF_INET;
+	seraddr.sin_port = htons(atoi(argv[1]));
+	if(inet_pton(AF_INET, "127.0.0.1", &(seraddr.sin_addr)) == 1);
+	else
+	{
+		printf("error1\n");
+		exit(-1);
+	}
+	if(-1 == bind(serfd, (struct sockaddr*)&seraddr, sizeof(struct sockaddr_in)))
+	{
+		printf("error bind\n");
+		exit(-1);
+	}
+	if(listen(serfd, 5)  == -1)
+		exit(-1);
+	while(1);
+	while(1)
+	{
+		clfd =  accept(serfd, NULL, NULL);
+		switch(fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				close(serfd);
+				int comp = 0;
+				int num = read(clfd, mes, sizeof(mes));
+				
+				if(num == 0)
+				{
+					printf("serve read 0\n");
+					_exit(0);
+				}
+				if(num < 0)
+				{
+					printf("serve read error\n");
+					_exit(-1);
+				}
+				printf("serve successly read %lu\n", num/sizeof(int));
+				for(int i = 0; i < num/sizeof(int); ++i)
+				{
+					comp += mes[i];
+					//printf("serve %d ", mes[i]);
+				}
+				printf("\nserve num: %d\n", comp);
+				write(clfd, &comp, sizeof(int));
+				_exit(0);
+			default:
+				close(clfd);
+				break;
+		}
+	}
+	return 0;
+}
+
+#include <stdio.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	int prio, which;
+	id_t who;
+	which = (argv[1][0] == 'p') ? PRIO_PROCESS : ((argv[1][0] == 's') ? PRIO_USER : PRIO_PGRP);
+	int s;
+	who = atoi(argv[2]);
+	prio = atoi(argv[3]);
+	errno = 0;
+	s = getpriority(which, who);
+	if( s == -1 && errno != 0)
+		exit(-1);
+	printf("%ld PID`s %d\n",(long)who, s);
+	
+	s = setpriority(which, who, prio);
+	if(s == -1)
+		exit(-1);
+	s = getpriority(which, who);
+	if( s == -1 && errno != 0)
+		exit(-1);
+	printf("%ld PID`s %d\n",(long)who, prio);
+
+	return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+
+#define MES_MAX 1000
+
+int main(int argc, char **argv)
+{
+
+	fflush(stdout);
+	int clfd;
+	char mes[MES_MAX];
+	for(int i = 0; i < MES_MAX; ++i)
+		mes[i] = (i + 1);
+
+
+	clfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+
+	seraddr.sin_family = AF_INET;
+	//seraddr.sin_port = htons(atoi(argv[1]));
+//	inet_pton(AF_INET, "127.0.0.1", &(seraddr.sin_addr));
+	seraddr.sin_port = htons(atoi(argv[3]));
+	inet_pton(AF_INET, argv[1], &(seraddr.sin_addr));
+	connect(clfd, (struct sockaddr*)&seraddr, sizeof(seraddr));
+	//int num = write(clfd, mes, sizeof(mes));
+	int num = write(clfd, mes, sizeof(char) * atoi(argv[2]));
+	printf("client pass %d, success %lu\n", atoi(argv[2]), num/sizeof(int)); 
+	for(int i = 0; i < MES_MAX; ++i)
+		printf("%c ", mes[i]);
+	printf("\n");
+
+	fflush(stdout);
+	num = read(clfd, &mes, sizeof(mes));
+	printf("success read %d \n%*.s\n", num, num, mes);
+	return 0;
+}
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <signal.h>
+#include <sys/signalfd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+	sigset_t mask;
+	int sfd, j;
+	int fd = -1;
+	struct signalfd_siginfo fdsi;
+	ssize_t s;
+	printf("%s: PID = %ld\n", argv[0], (long)getpid());
+	sigemptyset(&mask);
+	for(j = 1; j < argc; ++j)
+		sigaddset(&mask, atoi(argv[j]));
+	if(sigprocmask(SIG_BLOCK, &mask, NULL) == -1)
+		exit(-1);
+	sfd = signalfd(fd, &mask, 0);
+	if(sfd == -1)
+	{
+		printf("error\n");
+		exit(-1);
+	}
+	for(;;)
+	{
+		s = read(sfd, &fdsi, sizeof(struct signalfd_siginfo));
+		if(s != sizeof(struct signalfd_siginfo))
+			exit(-1);
+		printf("%s: got signal %d\n", argv[0], fdsi.ssi_signo);
+		if(fdsi.ssi_code == SI_QUEUE)
+		{
+			printf("; ssi_pid = %d; ", fdsi.ssi_pid);
+			printf("ssi_int = %d", fdsi.ssi_int);
+		}
+		printf("\n");
+	}
+}
+
+	
+#define _POSIX_C_SOURCE 199309
+#include <signal.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+	int sig, numsigs, sigdata;
+	union sigval sv;
+	printf("%s: PID is %ld, UID is %ld\n", argv[0], 
+				(long) getpid(), (long)getuid());
+	sig = atoi(argv[2]);
+	sigdata = atoi(argv[3]);
+	numsigs = (argc > 4) ? atoi(argv[4]) : 1;
+	for(int j = 0; j < numsigs; ++j)
+	{
+		sv.sival_int = sigdata + j;
+		if(sigqueue(atol(argv[1]), sig, sv) == -1)
+			exit(-1);
+	}
+	return 0;
+}
+
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+void handle(int sig)
+{
+	if(sig == 2)
+		printf("caugt a sig 2\n");
+}
+
+int main(int argc, char **argv)
+{
+	printf("PID=: %d\n", getpid());
+	int seconds = atoi(argv[1]);
+	signal(2, handle);
+	unsigned int remain = sleep(seconds);
+	if(remain != 0)
+	{
+		printf("sleep was break: %d\n", fremain);
+	}
+	return 0;
+}
+
+
+#include <stdio.h>
+
+int bo(int (*a)[9], int x, int y, int b)
+{
+	int i;
+	int j;
+	for(j = 0; j < 9; ++j)
+	 {
+		 if(j == x)
+			 continue;
+			if(b == a[j][y])
+				return 0;
+	}
+
+	for(j = 0; j < 9; ++j)
+	{
+		if(j == y)
+			continue;
+		if(b == a[x][j])
+			return 0;
+	}
+
+	i = x - x % 3;
+	j = y - y % 3;
+	int loo1 = i;
+	int loo2 = j;
+
+	for(i = loo1; i < loo1 + 3; ++i)
+		for(j = loo2; j < loo2 + 3; ++j)
+		{
+			if(i == x && j == y)
+				continue;
+			if(b == a[i][j])
+				return 0;
+		}
+		return 1;
+}
+
+int fun(int (*a)[9], int count)
+{
+	int i;
+	int x;
+	int y;
+	if(count > 81)
+		return 1;
+	x = (count - 1) / 9;
+	y = (count - 1) % 9;
+
+//	printf("%d %d %p \n", x, y, &a[0][0]);
+	if(a[x][y] != 0)
+	{
+		if(fun(a, count+1))
+			return 1;
+		return 0;
+	}
+	else
+	{
+		for(i = 1; i <= 9; ++i)
+		{
+			if(bo(a, x, y, i))
+			{
+				a[x][y] = i;
+				if(fun(a, count+1))
+					return 1;
+				a[x][y] = 0;
+			}
+		}
+	}
+		return 0;
+}
+
+int main(int argc, char **argv)
+{
+	int a[9][9];
+	int i;
+	int j;
+
+	for(i = 0; i < 9; ++i)
+		for(j = 0; j < 9; ++j)
+		{
+			scanf("%d", &a[i][j]);
+		}
+	
+	printf("begin:\n");
+	if(fun(a, 1))
+	{
+		printf("answer:\n");
+		for(i = 0; i < 9; ++i)
+		{
+			for(j = 0; j < 9; ++j)
+			{
+				printf("%2d", a[i][j]);
+			}
+			printf("\n");
+		}
+	}
+	else
+		printf("no answer\n");
+	return 0;
+}
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+#define MAX_MES 81
+#define PORT 4096
+
+int main(int argc, char **argv)
+{
+	int clifd;
+	int num;
+	int mes[MAX_MES];
+	int i;
+	int j;
+	clifd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+	seraddr.sin_family = AF_INET;
+	inet_pton(AF_INET, "127.0.0.1", &seraddr.sin_addr);
+	seraddr.sin_port = htons(PORT);
+	if(connect(clifd, (struct sockaddr*)&seraddr, sizeof(seraddr)) == -1)
+	{
+		printf("client connect error\n");
+		exit(-1);
+	}
+	for(int i = 0; i < MAX_MES; ++i)
+		scanf("%d", &mes[i]);
+	
+
+	if((num = write(clifd, mes, sizeof(int) * MAX_MES)) == -1)
+	{
+		printf("client write error\n");
+		exit(-1);
+	}
+	if((num = read(clifd, mes, sizeof(int) * MAX_MES)) == -1)
+	{
+		printf("client read error\n");
+		exit(-1);
+	}
+
+	for(i = 0; i < 9; ++i)
+	{
+		for(j = 0; j < 9; ++j)
+		{
+			printf("%2d", mes[i*9+j]);
+		}
+		printf("\n");
+	}
+
+	return 0;
+}
+
+#include <sys/wait.h>
+#include <signal.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <sys/un.h>
+#include <arpa/inet.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#define MAX_MES 81
+#define PORT 4096
+
+void handle(int sig)
+{
+	
+	while(waitpid(-1, NULL, WNOHANG) > 0);
+}
+
+int bo(int (*a)[9], int x, int y, int b)
+{
+	int i;
+	int j;
+	for(j = 0; j < 9; ++j)
+	 {
+		 if(j == x)
+			 continue;
+			if(b == a[j][y])
+				return 0;
+	}
+
+	for(j = 0; j < 9; ++j)
+	{
+		if(j == y)
+			continue;
+		if(b == a[x][j])
+			return 0;
+	}
+
+	i = x - x % 3;
+	j = y - y % 3;
+	int loo1 = i;
+	int loo2 = j;
+
+	for(i = loo1; i < loo1 + 3; ++i)
+		for(j = loo2; j < loo2 + 3; ++j)
+		{
+			if(i == x && j == y)
+				continue;
+			if(b == a[i][j])
+				return 0;
+		}
+		return 1;
+}
+
+int fun(int (*a)[9], int count)
+{
+	int i;
+	int x;
+	int y;
+	if(count > 81)
+		return 1;
+	x = (count - 1) / 9;
+	y = (count - 1) % 9;
+
+//	printf("%d %d %p \n", x, y, &a[0][0]);
+	if(a[x][y] != 0)
+	{
+		if(fun(a, count+1))
+			return 1;
+		return 0;
+	}
+	else
+	{
+		for(i = 1; i <= 9; ++i)
+		{
+			if(bo(a, x, y, i))
+			{
+				a[x][y] = i;
+				if(fun(a, count+1))
+					return 1;
+				a[x][y] = 0;
+			}
+		}
+	}
+		return 0;
+}
+
+int main(int argc, char **argv)
+{
+	int serfd;
+	int clifd;
+	int num = 0;
+	int a[9][9];
+	int mes[MAX_MES];
+
+	/*for(i = 0; i < 9; ++i)
+		for(j = 0; j < 9; ++j)
+		{
+			scanf("%d", &a[i][j]);
+			if(a[i][j] != 0)
+				sum++;
+		}
+	
+	printf("begin:\n");
+	int count = 1;
+	if(fun(a, count))
+	{
+		printf("answer:\n");
+		for(i = 0; i < 9; ++i)
+		{
+			for(j = 0; j < 9; ++j)
+			{
+				printf("%2d", a[i][j]);
+			}
+			printf("\n");
+		}
+	}
+	else
+		printf("no answer\n");
+		*/
+	
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sa.sa_handler = handle;
+	if(sigaction(SIGCHLD, &sa, NULL) == -1)
+		exit(-1);
+	serfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in seraddr;
+	seraddr.sin_family = AF_INET;
+	inet_pton(AF_INET, "127.0.0.1", &(seraddr.sin_addr));
+	seraddr.sin_port = htons(PORT);
+	
+	if(bind(serfd, (struct sockaddr *)&seraddr, sizeof(seraddr)) == -1)
+	{
+		printf("bind error\n");
+		exit(-1);
+	}
+
+	if(listen(serfd, 5) == -1)
+	{
+		printf("listen error\n");
+		exit(-1);
+	}
+
+	while(1)
+	{
+		clifd = accept(serfd, NULL, NULL);
+		switch(fork())
+		{
+			case -1:
+				printf("fork error\n");
+				exit(-1);
+			case 0:
+				close(serfd);
+				if((num = read(clifd, mes, sizeof(int) * MAX_MES)) == -1)
+				{
+					printf("%ld read error\n", (long)getpid());
+					exit(-1);
+				}
+				memcpy(a, mes, num);
+				if(fun(a, 1))
+					memcpy(mes, a, num);
+				if((num = write(clifd, mes, sizeof(int) * MAX_MES)) == -1)
+				{
+					printf("%ld write error\n", (long)getpid());
+					exit(-1);
+				}
+				exit(0);
+			
+			default:
+				close(clifd);
+				break;
+		}
+	}
+
+	
+	return 0;
+}
+	
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+
+int system(char *command)
+{
+	int status;
+	pid_t childpid;
+
+	switch(childpid = fork())
+	{
+		case -1:
+			return -1;
+		case 0:
+			execl("/bin/sh", "sh", "-c", command, (char*)NULL);
+			_exit(127);
+		default:
+			if(waitpid(childpid, &status, 0) == -1)
+				return -1;
+			else
+				return status;
+		}
+}
+
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BUF_SIZE 256
+
+int main(int argc, char **argv)
+{
+//	int lim = sysconf(_SC_ATEXIT_MAX);
+//	printf("%d\n", lim);
+//	int a;
+//	float b;
+//	(void)( &a == &b);
+	/*
+	int n = ~0;
+	int count = 0;
+	unsigned int s = n;
+	printf("%d\n", n);
+	while(n != 0)
+	{
+		count++;
+		n = n << 1;
+	}
+	printf("%d\n", count);
+	count = 1;
+	while(s= ((s>>1)&s))
+	{
+	count++;
+	}
+	printf("%d\n", count);
+	*/
+	/*
+	for(int i = 0; i < 255; ++i)
+	{
+		printf("%c %d ", (char)i, i);
+	}
+	*/
+	union
+	{
+		int i;
+		char x[2];
+	}a;
+	memset(&a, 0, sizeof(a));
+	a.x[0] = 10;
+	a.x[1] = 1;
+	printf("%d\n", a.i);
+
+	return 0;
+}
+#include <stdio.h>
+#include <pthread.h>
+#include <stdlib.h>
+
+static int glo = 0;
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
+static void* threadfunc(void *arg)
+{
+	int loop = *((int*)arg);
+	int loc;
+	for(int i = 0; i < loop; ++i)
+	{
+		int s;
+		s = pthread_mutex_lock(&mtx);
+		if(s != 0) exit(-1);
+		loc = glo;
+		++loc;
+		glo = loc;
+		s = pthread_mutex_unlock(&mtx);
+		if(s != 0) exit(-1);
+	}
+
+	return NULL;
+}
+
+int main(int argc, char **argv)
+{
+	pthread_t t1, t2;
+	int loops;
+	loops = (argc > 1) ? atoi(argv[1]) : 1000000;
+	int s;
+	s = pthread_create(&t1, NULL, threadfunc, &loops);
+	if(s == -1) exit(-1);
+
+	s = pthread_create(&t2, NULL, threadfunc, &loops);
+	if(s == -1) exit(-1);
+
+	s = pthread_join(t1, NULL);
+	if(s == -1) exit(-1);
+	s = pthread_join(t2, NULL);
+	if(s == -1) exit(-1);
+
+	printf("%d\n", glo);
+	pthread_mutex_destroy(&mtx);
+
+	return 0;
+}
+
+#include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
+static int glob = 0;
+static sem_t sem;
+
+static void* thread_func(void *arg)
+{
+	int loops = *(int*)arg;
+	int loc, j;
+
+	for(j = 0; j < loops; ++j)
+	{
+		if(sem_wait(&sem) == -1)
+		{
+			printf("sem_wait error\n");
+			exit(-1);
+		}
+
+		loc = glob;
+		++loc;
+		glob = loc;
+
+		if(sem_post(&sem) == -1)
+		{
+			printf("sem_post error\n");
+			exit(-1);
+		}
+	}
+	return NULL;
+}
+
+		
+int main(int argc, char **argv)
+{
+	pthread_t t1, t2;
+	int loops, s;
+
+	loops = (argc > 1) ? atol(argv[1]) : 10000000;
+
+	if(sem_init(&sem, 0, 1) == -1)
+	{
+		printf("sem_init error\n");
+		exit(-1);
+	}
+
+	s = pthread_create(&t1, NULL, thread_func, &loops);
+	if(s != 0)
+	{
+		printf("pthread_create error\n");
+		exit(-1);
+	}
+	s = pthread_create(&t2, NULL, thread_func, &loops);
+	if(s != 0)
+	{
+		printf("pthread_create error\n");
+		exit(-1);
+	}
+
+	s = pthread_join(t1, NULL);
+	if(s != 0)
+	{
+		printf("pthread_join error\n");
+		exit(-1);
+	}
+	s = pthread_join(t2, NULL);
+	if(s != 0)
+	{
+		printf("pthread_join error\n");
+		exit(-1);
+	}
+
+	printf("glob = %d\n", glob);
+	sem_destroy(&sem);
+	return 0;
+}
+
+//书上的源程序有bug，给线程函数传递参数时，采用的指针，但是不知道后续的调度如何，指针所指向的缓冲区会被改变
+//作者已在个人网站更新这个错误
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdint.h>
+
+static pthread_cond_t thread_died = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static int tot_threads = 0;
+static int num_live = 0;
+
+static int num_unjoined = 0;
+
+enum tstate
+{
+	TS_ALIVE,
+	TS_TERMINATED,
+	TS_JOINED
+};
+
+static struct 
+{
+	pthread_t tid;
+	enum tstate state;
+	int sleep_time;
+} *thread;
+
+static void* thread_func(void *arg)
+{
+	uintptr_t idx = (uintptr_t)arg;
+	//int idx = ((int)arg);
+//	int idx = *((int*)arg);
+	int s;
+	sleep(thread[idx].sleep_time);
+	printf("Thread %lu terminating\n", idx);
+
+	s = pthread_mutex_lock(&thread_mutex);
+	if(s != 0)
+		exit(-1);
+	
+	num_unjoined++;
+	thread[idx].state = TS_TERMINATED;
+
+	s = pthread_mutex_unlock(&thread_mutex);
+	if(s != 0)
+		exit(-1);
+	s = pthread_cond_signal(&thread_died);
+	if(s != 0)
+		exit(-1);
+	
+
+	printf("Thread %lu exit\n", idx);
+	return NULL;
+}
+
+int main(int argc, char **argv)
+{
+	int s, idx;
+	thread = calloc(argc - 1, sizeof(*thread));
+	if(thread == NULL)
+		exit(-1);
+	
+	for(idx = 0; idx < argc - 1; ++idx)
+	{
+		thread[idx].sleep_time = atoi(argv[idx+1]);
+		thread[idx].state = TS_ALIVE;
+	//	s = pthread_create(&thread[idx].tid, NULL, thread_func, &idx);
+	//	s = pthread_create(&thread[idx].tid, NULL, thread_func, ((void*)idx));
+		s = pthread_create(&thread[idx].tid, NULL, thread_func, ((void*)(uintptr_t)idx));
+		if(s != 0)
+			exit(-1);
+	}
+
+	tot_threads = argc - 1;
+	num_live = tot_threads;
+
+	while(num_live > 0)
+	{
+		s = pthread_mutex_lock(&thread_mutex);
+		if(s != 0)
+			exit(-1);
+		while(num_unjoined == 0)
+		{
+			s = pthread_cond_wait(&thread_died, &thread_mutex);
+			if(s != 0)
+				exit(-1);
+		}
+
+		for(idx = 0; idx < tot_threads; ++idx)
+		{
+			if(thread[idx].state == TS_TERMINATED)
+			{
+				s = pthread_join(thread[idx].tid, NULL);
+				if(s != 0)
+					exit(-1);
+				thread[idx].state = TS_JOINED;
+				--num_live;
+				--num_unjoined;
+
+				printf("reaped thread %d (num_live=%d)\n", idx, num_live);
+			}
+		}
+		s = pthread_mutex_unlock(&thread_mutex);
+		if(s != 0)
+			exit(-1);
+	}
+	return 0;
+}
+
+#include <stdio.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#define BUF_SIZE 200
+
+static void hangdler(int sig)
+{
+	printf("Caught signal\n");
+}
+
+int main(int argc, char **argv)
+{
+	struct sigaction sa;
+	char buf[BUF_SIZE];
+	ssize_t numread;
+	int saveerrno;
+
+	sa.sa_flags = (argc > 2) ? SA_RESTART : 0;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = hangdler;
+	if(sigaction(SIGALRM, &sa, NULL) == -1)
+		exit(-1);
+	alarm((argc > 1) ? atoi(argv[1]) : 10);
+	numread = read(STDIN_FILENO, buf, BUF_SIZE - 1);
+	saveerrno = errno;
+	alarm(0);
+	errno = saveerrno;
+
+	if(numread == -1)
+	{
+		if(errno == EINTR)
+			printf("Read timed out\n");
+		else
+			exit(-1);
+		}
+		else
+		{
+			printf("Successful read (%ld bytes): %.*s",
+						(long)numread, (int)numread, buf);
+		}
+		
+		return 0;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <string.h>
+
+#define MEM_SIZE 10
+
+int main(int argc, char **argv)
+{
+	char *addr;
+	int fd;
+	fd = open(argv[1], O_RDWR);
+	if(fd == -1)
+		exit(-1);
+	
+	addr = mmap(NULL, MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if(addr == MAP_FAILED)
+		exit(-1);
+	
+	if(close(fd) == -1)
+		exit(-1);
+	
+	printf("current string %.*s\n", MEM_SIZE, addr);
+
+	if(argc > 2)
+	{
+		if(strlen(argv[2]) > MEM_SIZE)
+			exit(-1);
+		//memset(addr, 0, MEM_SIZE);
+		strncpy(addr, argv[2], strlen(argv[2]));
+		if(msync(addr, MEM_SIZE, MS_SYNC) == -1)
+			exit(-1);
+
+		printf("copied \"%s\" to shared memory\n", argv[2]);
+	}
+	
+exit(0);
+}
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <ctype.h>
+
+#define BUF_SIZE 10
+#define PORT_NUM 5002
+
+int main(int argc, char **argv)
+{
+	int sfd, j;
+	struct sockaddr_in6 svaddr;
+	size_t num_bytes;
+	size_t msg_len;
+	char resp[BUF_SIZE];
+
+	sfd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if(sfd == -1)
+		exit(-1);
+	
+	memset(&svaddr, 0, sizeof(svaddr));
+	svaddr.sin6_family = AF_INET6;
+	svaddr.sin6_port = htons(PORT_NUM);
+	if(inet_pton(AF_INET6, argv[1], &svaddr.sin6_addr) <= 0)
+		exit(-1);
+	
+	for(j = 2; j < argc; ++j)
+	{
+		msg_len = strlen(argv[j]);
+		if(sendto(sfd, argv[j], msg_len, 0, (struct sockaddr*)&svaddr, sizeof(svaddr)) != msg_len)
+			exit(-1);
+		num_bytes = recvfrom(sfd, resp, BUF_SIZE, 0, NULL, NULL);
+		if(num_bytes == -1)
+			exit(-1);
+		printf("Response %d: %.*s\n", j - 1, (int)num_bytes, resp);
+	}
+
+	return 0;
+}
+
+
+
+
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <ctype.h>
+
+#define BUF_SIZE 10
+#define PORT_NUM 5002
+#define IN6ADDR_INET {{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}}
+
+void perr(char *str)
+{
+	printf("%s\n", str);
+	exit(-1);
+}
+
+int main(int argc, char **argv)
+{
+	struct sockaddr_in6 svaddr, claddr;
+	int sfd, j;
+	size_t num_bytes;
+	socklen_t len;
+	char buf[BUF_SIZE];
+	char claddrstr[64];
+
+	sfd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if(sfd == -1)
+		perr("socket error");
+	memset(&svaddr, 0, sizeof(struct sockaddr_in6));
+
+	const struct in6_addr in6addr_any = IN6ADDR_INET; 
+	svaddr.sin6_family = AF_INET6;
+	svaddr.sin6_port = htons(PORT_NUM);
+	svaddr.sin6_addr = in6addr_any;
+
+	if(bind(sfd, (struct sockaddr*)&svaddr, sizeof(struct sockaddr_in6)) == -1)
+		perr("bind error");
+	
+	for(;;)
+	{
+		len = sizeof(struct sockaddr_in6);
+		num_bytes = recvfrom(sfd, buf, BUF_SIZE, 0, (struct sockaddr*)&claddr, &len);
+		
+		if(num_bytes == -1)
+			perr("recvfrom");
+		
+		if(inet_ntop(AF_INET6, &claddr.sin6_addr, claddrstr, 46) == NULL)
+			printf("couldn`t convert client address to string\n");
+		else
+			printf("Server received %ld butys from (%s, %u)\n", (long)num_bytes, claddrstr, ntohs(claddr.sin6_port));
+
+		for(j = 0; j < num_bytes; ++j)
+			buf[j] = toupper((unsigned char) buf[j]);
+		if(sendto(sfd, buf, num_bytes, 0, (struct sockaddr *)&claddr, len) != num_bytes)
+			perr("sendto");
+		}
+}
+
+
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+	int isstack = 222;
+
+	switch(vfork())
+	{
+		case -1:
+			exit(-1);
+		case 0:
+			sleep(3);
+			write(STDOUT_FILENO, "child executing\n", 16);
+			isstack *= 3;
+			_exit(EXIT_SUCCESS);
+		default:
+			write(STDOUT_FILENO, "parent executing\n", 17);
+			printf("isstack=%d\n", isstack);
+			exit(EXIT_SUCCESS);
+	}
+}
+
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <errno.h>
+
+int main(int argc, char **argv)
+{
+	int numdead;
+	pid_t childpid;
+	int j;
+	setbuf(stdout, NULL);
+
+	for(j = 1; j < argc; ++j)
+	{
+		switch(fork())
+		{
+			case -1:
+				exit(-1);
+			case 0:
+				printf("child %d started with PID %ld, sleeping %s \n",
+							j, (long)getpid(), argv[j]);
+				sleep(atoi(argv[j]));
+				_exit(0);
+			default:
+				break;
+		}
+	}
+	
+	numdead = 0;
+	for(;;)
+	{
+		childpid = wait(NULL);
+		if(childpid == -1)
+		{
+			if(errno == ECHILD)
+			{
+				printf("No more children - bye\n");
+				exit(0);
+			}
+			else
+			{
+				exit(-1);
+			}
+		}
+		numdead ++;
+		printf("wait() returned child PID %ld (numdead=%d\n", (long)childpid, numdead);
+	}
+}
+
